@@ -1239,9 +1239,7 @@ public partial class FunctionInvokingChatClient : DelegatingChatClient
     /// The output messages tries to mimic the original messages that contained the <see cref="FunctionCallContent"/>, e.g. if the <see cref="FunctionCallContent"/>
     /// had been split into separate messages, this method will recreate similarly split messages, each with their own <see cref="FunctionCallContent"/>.
     /// </summary>
-#pragma warning disable CA1859 // Use concrete types when possible for improved performance
     private static ICollection<ChatMessage>? ConvertToFunctionCallContentMessages(IEnumerable<ApprovalResultWithRequestMessage>? resultWithRequestMessages, string? fallbackMessageId)
-#pragma warning restore CA1859 // Use concrete types when possible for improved performance
     {
         if (resultWithRequestMessages is not null)
         {
@@ -1250,7 +1248,7 @@ public partial class FunctionInvokingChatClient : DelegatingChatClient
 
             foreach (var resultWithRequestMessage in resultWithRequestMessages)
             {
-                // Don't need to create a dictionary on the first iteration or if we alrady have one.
+                // Don't need to create a dictionary on the first iteration or if we already have one.
                 if (currentMessage is not null && messagesById is null
 
                     // Everywhere we have no RequestMessage we use the fallbackMessageId, so in this case there is only one message.
@@ -1282,7 +1280,15 @@ public partial class FunctionInvokingChatClient : DelegatingChatClient
                 }
             }
 
-            return messagesById?.Values as ICollection<ChatMessage> ?? (currentMessage != null ? [currentMessage!] : null);
+            if (messagesById?.Values is ICollection<ChatMessage> cm)
+            {
+                return cm;
+            }
+
+            if (currentMessage != null)
+            {
+                return [currentMessage];
+            }
         }
 
         return null;
@@ -1461,9 +1467,9 @@ public partial class FunctionInvokingChatClient : DelegatingChatClient
 #endif
 
     /// <summary>
-    /// Execute the provided <see cref="FunctionApprovalResponseContent"/> and return the resulting <see cref="FunctionCallContent"/>.
+    /// Execute the provided <see cref="FunctionApprovalResponseContent"/> and return the resulting <see cref="FunctionCallContent"/> wrapped in <see cref="ChatMessage"/> objects.
     /// </summary>
-    private async Task<(IList<ChatMessage>? FunctionResultContent, bool ShouldTerminate, int ConsecutiveErrorCount)> InvokeApprovedFunctionApprovalResponsesAsync(
+    private async Task<(IList<ChatMessage>? FunctionResultContentMessages, bool ShouldTerminate, int ConsecutiveErrorCount)> InvokeApprovedFunctionApprovalResponsesAsync(
         List<ApprovalResultWithRequestMessage>? notInvokedApprovals,
         List<ChatMessage> originalMessages,
         ChatOptions? options,
