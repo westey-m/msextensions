@@ -382,9 +382,6 @@ public partial class FunctionInvokingChatClient : DelegatingChatClient
         // where we don't know what the original message id of the function call was.
         string functionCallContentFallbackMessageId = Guid.NewGuid().ToString("N");
 
-        ApprovalRequiredAIFunction[]? approvalRequiredFunctions = (options?.Tools ?? []).Concat(AdditionalTools ?? []).OfType<ApprovalRequiredAIFunction>().ToArray();
-        bool hasApprovalRequiringFunctions = approvalRequiredFunctions.Length > 0;
-
         // Process approval requests (remove from original messages) and rejected approval responses (re-create FCC and create failed FRC).
         var (preDownstreamCallHistory, notInvokedApprovals) = ProcessFunctionApprovalResponses(
             originalMessages, !string.IsNullOrWhiteSpace(options?.ConversationId), toolResponseId, functionCallContentFallbackMessageId);
@@ -415,6 +412,9 @@ public partial class FunctionInvokingChatClient : DelegatingChatClient
                 yield break;
             }
         }
+
+        ApprovalRequiredAIFunction[]? approvalRequiredFunctions = (options?.Tools ?? []).Concat(AdditionalTools ?? []).OfType<ApprovalRequiredAIFunction>().ToArray();
+        bool hasApprovalRequiringFunctions = approvalRequiredFunctions.Length > 0;
 
         for (int iteration = 0; ; iteration++)
         {
@@ -464,7 +464,7 @@ public partial class FunctionInvokingChatClient : DelegatingChatClient
                     (hasApprovalRequiringFcc, lastApprovalCheckedFCCIndex) = await CheckForApprovalRequiringFCCAsync(
                         functionCallContents, approvalRequiredFunctions, hasApprovalRequiringFcc, lastApprovalCheckedFCCIndex, cancellationToken);
 
-                    // We've encountered a function call content that requires approval (either in this update or ealier)
+                    // We've encountered a function call content that requires approval (either in this update or earlier)
                     // so we need to ask for approval for all functions, since we cannot mix and match.
                     if (hasApprovalRequiringFcc)
                     {
@@ -1326,7 +1326,8 @@ public partial class FunctionInvokingChatClient : DelegatingChatClient
         // If we already found an approval requiring FCC, we can skip checking the rest.
         if (hasApprovalRequiringFcc)
         {
-            return (true, functionCallContents?.Count ?? 0);
+            Debug.Assert(functionCallContents is not null, "functionCallContents must not be null here, since we have already encountered approval requiring functionCallContents");
+            return (true, functionCallContents!.Count);
         }
 
         for (; lastApprovalCheckedFCCIndex < (functionCallContents?.Count ?? 0); lastApprovalCheckedFCCIndex++)
@@ -1335,7 +1336,7 @@ public partial class FunctionInvokingChatClient : DelegatingChatClient
             if (approvalRequiredFunctions.FirstOrDefault(y => y.Name == fcc.Name) is ApprovalRequiredAIFunction approvalFunction &&
                 await approvalFunction.RequiresApprovalCallback(new(fcc), cancellationToken))
             {
-                hasApprovalRequiringFcc |= true;
+                hasApprovalRequiringFcc = true;
             }
         }
 
